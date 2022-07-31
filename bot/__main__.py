@@ -7,7 +7,7 @@ from sys import executable
 from telegram import InlineKeyboardMarkup
 from telegram.ext import CommandHandler
 
-from bot import bot, dispatcher, updater, botStartTime, IGNORE_PENDING_REQUESTS, LOGGER, Interval, INCOMPLETE_TASK_NOTIFIER, DB_URI, alive, app, main_loop
+from bot import bot, dispatcher, updater, botStartTime, IGNORE_PENDING_REQUESTS, LOGGER, Interval, INCOMPLETE_TASK_NOTIFIER, DB_URI, alive, app, main_loop, AUTHORIZED_CHATS
 from .helper.ext_utils.fs_utils import start_cleanup, clean_all, exit_clean_up
 from .helper.ext_utils.telegraph_helper import telegraph
 from .helper.ext_utils.bot_utils import get_readable_file_size, get_readable_time
@@ -17,7 +17,7 @@ from .helper.telegram_helper.message_utils import sendMessage, sendMarkup, editM
 from .helper.telegram_helper.filters import CustomFilters
 from .helper.telegram_helper.button_build import ButtonMaker
 
-from .modules import authorize, list, cancel_mirror, mirror_status, mirror, clone, watch, shell, eval, delete, count, leech_settings, search, rss, qbselect
+from .modules import authorize, list, cancel_mirror, mirror_status, mirror, clone, watch, shell, eval, delete, count, leech_settings, search, rss, bt_select, sleep
 
 
 def stats(update, context):
@@ -112,7 +112,7 @@ help_string_telegraph = f'''<br>
 <br><br>
 <b>/{BotCommands.UnzipMirrorCommand}</b> [download_url][magnet_link]: Start mirroring and upload the file/folder extracted from any archive extension
 <br><br>
-<b>/{BotCommands.QbMirrorCommand}</b> [magnet_link][torrent_file][torrent_file_url]: Start Mirroring using qBittorrent, Use `<b>/{BotCommands.QbMirrorCommand} s</b>` to select files before downloading and use `<b>/{BotCommands.QbMirrorCommand} d</b>` to seed specific torrent and those two args works with all qb commands
+<b>/{BotCommands.QbMirrorCommand}</b> [magnet_link][torrent_file][torrent_file_url]: Start Mirroring using qBittorrent. Send <b>/{BotCommands.QbMirrorCommand}</b> for more help
 <br><br>
 <b>/{BotCommands.QbZipMirrorCommand}</b> [magnet_link][torrent_file][torrent_file_url]: Start mirroring using qBittorrent and upload the file/folder compressed with zip extension
 <br><br>
@@ -148,7 +148,7 @@ help_string_telegraph = f'''<br>
 <br><br>
 <b>/{BotCommands.SetThumbCommand}</b>: Reply photo to set it as Thumbnail
 <br><br>
-<b>/{BotCommands.QbSelectCommand}</b>: Reply to an active /qbcmd which was used to start the qb-download or add gid along with cmd. This command mainly for selection incase you decided to select files from already added qb-torrent. But you can always use /qbcmd with arg `s` to select files before download start
+<b>/{BotCommands.BtSelectCommand}</b>: Reply to an active /cmd which was used to start the bt-download or add gid along with cmd. This command mainly for selection incase you decided to select files from already added torrent. But you can always use /cmd with arg `s` to select files before download start
 <br><br>
 <b>/{BotCommands.RssListCommand}</b>: List all subscribed rss feed info
 <br><br>
@@ -193,6 +193,8 @@ help_string = f'''
 
 /{BotCommands.RestartCommand}: Restart and update the bot
 
+/{BotCommands.SleepCommand}: idle the bot
+
 /{BotCommands.LogCommand}: Get a log file of the bot. Handy for getting crash reports
 '''
 
@@ -204,14 +206,14 @@ def bot_help(update, context):
 
 def main():
     start_cleanup()
+    notifier_dict = False
     if INCOMPLETE_TASK_NOTIFIER and DB_URI is not None:
-        notifier_dict = DbManger().get_incomplete_tasks()
-        if notifier_dict:
+        if notifier_dict := DbManger().get_incomplete_tasks():
             for cid, data in notifier_dict.items():
                 if ospath.isfile(".restartmsg"):
                     with open(".restartmsg") as f:
                         chat_id, msg_id = map(int, f)
-                    msg = 'Restarted successfully!'
+                    msg = 'Restarted Successfully!'
                 else:
                     msg = 'Bot Restarted!'
                 for tag, links in data.items():
@@ -219,29 +221,35 @@ def main():
                      for index, link in enumerate(links, start=1):
                          msg += f" <a href='{link}'>{index}</a> |"
                          if len(msg.encode()) > 4000:
-                             if 'Restarted successfully!' in msg and cid == chat_id:
+                             if 'Restarted Successfully!' in msg and cid == chat_id:
                                  bot.editMessageText(msg, chat_id, msg_id, parse_mode='HTMl', disable_web_page_preview=True)
                                  osremove(".restartmsg")
                              else:
                                  try:
-                                     bot.sendMessage(cid, msg, 'HTML')
+                                     bot.sendMessage(cid, msg, 'HTML', disable_web_page_preview=True)
                                  except Exception as e:
                                      LOGGER.error(e)
                              msg = ''
-                if 'Restarted successfully!' in msg and cid == chat_id:
+                if 'Restarted Successfully!' in msg and cid == chat_id:
                      bot.editMessageText(msg, chat_id, msg_id, parse_mode='HTMl', disable_web_page_preview=True)
                      osremove(".restartmsg")
                 else:
                     try:
-                        bot.sendMessage(cid, msg, 'HTML')
+                        bot.sendMessage(cid, msg, 'HTML', disable_web_page_preview=True)
                     except Exception as e:
                         LOGGER.error(e)
 
     if ospath.isfile(".restartmsg"):
         with open(".restartmsg") as f:
             chat_id, msg_id = map(int, f)
-        bot.edit_message_text("Restarted successfully!", chat_id, msg_id)
+        bot.edit_message_text("Restarted Successfully!", chat_id, msg_id)
         osremove(".restartmsg")
+    elif not notifier_dict and AUTHORIZED_CHATS:
+        for id_ in AUTHORIZED_CHATS:
+            try:
+                bot.sendMessage(id_, "Bot Restarted!", 'HTML')
+            except Exception as e:
+                LOGGER.error(e)
 
     start_handler = CommandHandler(BotCommands.StartCommand, start, run_async=True)
     ping_handler = CommandHandler(BotCommands.PingCommand, ping,

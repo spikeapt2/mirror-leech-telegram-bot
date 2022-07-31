@@ -4,7 +4,7 @@ from threading import RLock, Lock
 
 from bot import LOGGER, download_dict, download_dict_lock, STOP_DUPLICATE, app
 from ..status_utils.telegram_download_status import TelegramDownloadStatus
-from bot.helper.telegram_helper.message_utils import sendMarkup, sendMessage, sendStatusMessage
+from bot.helper.telegram_helper.message_utils import sendMarkup, sendStatusMessage
 from bot.helper.mirror_utils.upload_utils.gdriveTools import GoogleDriveHelper
 
 global_lock = Lock()
@@ -79,12 +79,7 @@ class TelegramDownloadHelper:
 
     def add_download(self, message, path, filename):
         _dmsg = app.get_messages(message.chat.id, reply_to_message_ids=message.message_id)
-        media = None
-        media_array = [_dmsg.document, _dmsg.video, _dmsg.audio]
-        for i in media_array:
-            if i is not None:
-                media = i
-                break
+        media = next((i for i in [_dmsg.document, _dmsg.video, _dmsg.audio] if i is not None), None)
         if media is not None:
             with global_lock:
                 # For avoiding locking the thread lock for long time unnecessarily

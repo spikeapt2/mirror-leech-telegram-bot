@@ -90,7 +90,7 @@ class TgUploader:
                         width = 480
                         height = 320
                     if not file_.upper().endswith(("MKV", "MP4")):
-                        file_ = ospath.splitext(file_)[0] + '.mp4'
+                        file_ = f"{ospath.splitext(file_)[0]}.mp4"
                         new_path = ospath.join(dirpath, file_)
                         osrename(up_path, new_path)
                         up_path = new_path
@@ -174,7 +174,7 @@ class TgUploader:
         with self.__resource_lock:
             try:
                 return self.uploaded_bytes / (time() - self.__start_time)
-            except ZeroDivisionError:
+            except:
                 return 0
 
     def cancel_download(self):
